@@ -31,6 +31,7 @@
 //
 
 #region Usings
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -46,6 +47,8 @@ using OpenMetaverse.Rendering;
 using OpenMetaverse.Assets;
 using OpenMetaverse.Imaging;
 using OpenMetaverse.Packets;
+using OpenTK.WinForms;
+
 #endregion Usings
 
 namespace Radegast.Rendering
@@ -57,7 +60,7 @@ namespace Radegast.Rendering
         /// <summary>
         /// The OpenGL surface
         /// </summary>
-        public OpenTK.GLControl glControl = null;
+        public GLControl glControl = null;
 
         /// <summary>
         /// Use multi sampling (anti aliasing)
@@ -120,7 +123,7 @@ namespace Radegast.Rendering
 
         Dictionary<UUID, TextureInfo> TexturesPtrMap = new Dictionary<UUID, TextureInfo>();
         MeshmerizerR renderer;
-        OpenTK.Graphics.GraphicsMode GLMode = null;
+        GLControlSettings GLMode = null;
         AutoResetEvent TextureThreadContextReady = new AutoResetEvent(false);
 
         private CancellationTokenSource cancellationTokenSource = null;
@@ -137,8 +140,8 @@ namespace Radegast.Rendering
         Font HoverTextFont = new Font(FontFamily.GenericSansSerif, 9f, FontStyle.Regular);
         Font AvatarTagFont = new Font(FontFamily.GenericSansSerif, 10f, FontStyle.Bold);
         Dictionary<UUID, Bitmap> sculptCache = new Dictionary<UUID, Bitmap>();
-        OpenTK.Matrix4 ModelMatrix;
-        OpenTK.Matrix4 ProjectionMatrix;
+        OpenTK.Mathematics.Matrix4 ModelMatrix;
+        OpenTK.Mathematics.Matrix4 ProjectionMatrix;
         System.Diagnostics.Stopwatch renderTimer;
         float lastFrameTime = 0f;
         float advTimerTick = 0f;
@@ -148,9 +151,9 @@ namespace Radegast.Rendering
         float ambient = 0.26f;
         float difuse = 0.27f;
         float specular = 0.20f;
-        OpenTK.Vector4 ambientColor;
-        OpenTK.Vector4 difuseColor;
-        OpenTK.Vector4 specularColor;
+        OpenTK.Mathematics.Vector4 ambientColor;
+        OpenTK.Mathematics.Vector4 difuseColor;
+        OpenTK.Mathematics.Vector4 specularColor;
         float drawDistance;
         float drawDistanceSquared;
 
@@ -304,7 +307,7 @@ namespace Radegast.Rendering
             {
                 try
                 {
-                    while (RenderingEnabled && glControl != null && glControl.IsIdle)
+                    while (RenderingEnabled && glControl != null)
                     {
                         MainRenderLoop();
                         if (instance.MonoRuntime)
@@ -553,13 +556,6 @@ namespace Radegast.Rendering
         #region glControl setup and disposal
         public void SetupGLControl()
         {
-            // Crash fix for users with SDL2.dll in their path. OpenTK will attempt to use
-            //   SDL2 if it's available, but SDL2 is unsupported and will crash users.
-            OpenTK.Toolkit.Init(new OpenTK.ToolkitOptions
-            {
-                Backend = OpenTK.PlatformBackend.PreferNative
-            });
-
             RenderingEnabled = false;
 
             glControl?.Dispose();
@@ -569,39 +565,21 @@ namespace Radegast.Rendering
 
             try
             {
-                if (!UseMultiSampling)
-                {
-                    GLMode = new OpenTK.Graphics.GraphicsMode(OpenTK.DisplayDevice.Default.BitsPerPixel, 24, 8, 0);
-                }
-                else
-                {
-                    for (int aa = 0; aa <= 4; aa += 2)
-                    {
-                        var testMode = new OpenTK.Graphics.GraphicsMode(OpenTK.DisplayDevice.Default.BitsPerPixel, 24, 8, aa);
-                        if (testMode.Samples == aa)
-                        {
-                            GLMode = testMode;
-                        }
-                    }
-                }
+                GLMode = GLControlSettings.Default;
+                GLMode.Flags = OpenTK.Windowing.Common.ContextFlags.ForwardCompatible;
+                GLMode.AutoLoadBindings = true;
+                GLMode.IsEventDriven = false;
+                GLMode.API = OpenTK.Windowing.Common.ContextAPI.OpenGL;
+                GLMode.Profile = OpenTK.Windowing.Common.ContextProfile.Core;
+                GLMode.NumberOfSamples = UseMultiSampling ? 4 : 0;
             }
             catch
             {
                 GLMode = null;
             }
-
-
             try
             {
-                if (GLMode == null)
-                {
-                    // Try default mode
-                    glControl = new OpenTK.GLControl();
-                }
-                else
-                {
-                    glControl = new OpenTK.GLControl(GLMode);
-                }
+                glControl = GLMode == null ? new GLControl() : new GLControl(GLMode);
             }
             catch (Exception ex)
             {
@@ -615,8 +593,6 @@ namespace Radegast.Rendering
                 return;
             }
 
-            Logger.Log("Initializing OpenGL mode: " + GLMode, Helpers.LogLevel.Info);
-
             glControl.Paint += glControl_Paint;
             glControl.Resize += glControl_Resize;
             glControl.MouseDown += glControl_MouseDown;
@@ -626,7 +602,6 @@ namespace Radegast.Rendering
             glControl.Load += new EventHandler(glControl_Load);
             glControl.Disposed += new EventHandler(glControl_Disposed);
             glControl.Dock = DockStyle.Fill;
-            glControl.VSync = false;
             Controls.Add(glControl);
             glControl.BringToFront();
         }
@@ -650,9 +625,9 @@ namespace Radegast.Rendering
 
         void SetSun()
         {
-            ambientColor = new OpenTK.Vector4(ambient, ambient, ambient, difuse);
-            difuseColor = new OpenTK.Vector4(difuse, difuse, difuse, difuse);
-            specularColor = new OpenTK.Vector4(specular, specular, specular, specular);
+            ambientColor = new OpenTK.Mathematics.Vector4(ambient, ambient, ambient, difuse);
+            difuseColor = new OpenTK.Mathematics.Vector4(difuse, difuse, difuse, difuse);
+            specularColor = new OpenTK.Mathematics.Vector4(specular, specular, specular, specular);
             GL.Light(LightName.Light0, LightParameter.Ambient, ambientColor);
             GL.Light(LightName.Light0, LightParameter.Diffuse, difuseColor);
             GL.Light(LightName.Light0, LightParameter.Specular, specularColor);
@@ -688,47 +663,6 @@ namespace Radegast.Rendering
 
                 GL.AlphaFunc(AlphaFunction.Greater, 0.5f);
                 GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-
-                // Compatibility checks
-                OpenTK.Graphics.IGraphicsContextInternal context = glControl.Context as OpenTK.Graphics.IGraphicsContextInternal;
-                string glExtensions = GL.GetString(StringName.Extensions);
-
-                // VBO
-                RenderSettings.ARBVBOPresent = context.GetAddress("glGenBuffersARB") != IntPtr.Zero;
-                RenderSettings.CoreVBOPresent = context.GetAddress("glGenBuffers") != IntPtr.Zero;
-                RenderSettings.UseVBO = (RenderSettings.ARBVBOPresent || RenderSettings.CoreVBOPresent)
-                    && instance.GlobalSettings["rendering_use_vbo"];
-
-                // Occlusion Query
-                RenderSettings.ARBQuerySupported = context.GetAddress("glGetQueryObjectivARB") != IntPtr.Zero;
-                RenderSettings.CoreQuerySupported = context.GetAddress("glGetQueryObjectiv") != IntPtr.Zero;
-                RenderSettings.OcclusionCullingEnabled = (RenderSettings.CoreQuerySupported || RenderSettings.ARBQuerySupported)
-                    && instance.GlobalSettings["rendering_occlusion_culling_enabled2"];
-
-                // Mipmap
-                RenderSettings.HasMipmap = context.GetAddress("glGenerateMipmap") != IntPtr.Zero;
-
-                // Shader support
-                RenderSettings.HasShaders = glExtensions.Contains("vertex_shader") && glExtensions.Contains("fragment_shader");
-
-                // Multi texture
-                RenderSettings.HasMultiTexturing = context.GetAddress("glMultiTexCoord2f") != IntPtr.Zero;
-                RenderSettings.WaterReflections = instance.GlobalSettings["water_reflections"];
-
-                if (!RenderSettings.HasMultiTexturing || !RenderSettings.HasShaders)
-                {
-                    RenderSettings.WaterReflections = false;
-                }
-
-                // Do textures have to have dimensions that are powers of two
-                RenderSettings.TextureNonPowerOfTwoSupported = glExtensions.Contains("texture_non_power_of_two");
-
-                // Occlusion culling
-                RenderSettings.OcclusionCullingEnabled = Instance.GlobalSettings["rendering_occlusion_culling_enabled2"]
-                    && (RenderSettings.ARBQuerySupported || RenderSettings.CoreQuerySupported);
-
-                // Shiny
-                RenderSettings.EnableShiny = Instance.GlobalSettings["scene_viewer_shiny"];
 
                 RenderingEnabled = true;
                 // Call the resizing function which sets up the GL drawing window
@@ -1477,9 +1411,9 @@ namespace Radegast.Rendering
 
                     byte[] faceColor = null;
 
-                    OpenTK.Vector3 tagPos = RHelp.TKVector3(avPos);
+                    OpenTK.Mathematics.Vector3 tagPos = RHelp.TKVector3(avPos);
                     tagPos.Z += 1.2f;
-                    OpenTK.Vector3 screenPos;
+                    OpenTK.Mathematics.Vector3 screenPos;
                     if (!Math3D.GluProject(tagPos, ModelMatrix, ProjectionMatrix, Viewport, out screenPos)) continue;
 
                     string tagText = instance.Names.Get(av.avatar.ID, av.avatar.Name);
@@ -1506,7 +1440,7 @@ namespace Radegast.Rendering
                         }
                     }
 
-                    OpenTK.Vector3 quadPos = screenPos;
+                    OpenTK.Mathematics.Vector3 quadPos = screenPos;
                     screenPos.Y = glControl.Height - screenPos.Y;
                     screenPos.X -= tSize.Width / 2;
                     screenPos.Y -= tSize.Height / 2 + 2;
@@ -1547,7 +1481,7 @@ namespace Radegast.Rendering
                     if (!string.IsNullOrEmpty(prim.BasePrim.Text))
                     {
                         string text = System.Text.RegularExpressions.Regex.Replace(prim.BasePrim.Text, "(\r?\n)+", "\n");
-                        OpenTK.Vector3 primPos = RHelp.TKVector3(prim.RenderPosition);
+                        OpenTK.Mathematics.Vector3 primPos = RHelp.TKVector3(prim.RenderPosition);
 
                         // Display hovertext only on objects that are withing 12m of the camera
                         if (prim.DistanceSquared > (12 * 12)) continue;
@@ -1555,7 +1489,7 @@ namespace Radegast.Rendering
                         primPos.Z += prim.BasePrim.Scale.Z * 0.8f;
 
                         // Convert objects world position to 2D screen position in pixels
-                        OpenTK.Vector3 screenPos;
+                        OpenTK.Mathematics.Vector3 screenPos;
                         if (!Math3D.GluProject(primPos, ModelMatrix, ProjectionMatrix, Viewport, out screenPos)) continue;
                         screenPos.Y = glControl.Height - screenPos.Y;
 
@@ -2638,7 +2572,7 @@ namespace Radegast.Rendering
             GL.ReadPixels(x, glControl.Height - y, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, color);
             float depth = 0f;
             GL.ReadPixels(x, glControl.Height - y, 1, 1, PixelFormat.DepthComponent, PixelType.Float, ref depth);
-            OpenTK.Vector3 worldPosTK = OpenTK.Vector3.Zero;
+            OpenTK.Mathematics.Vector3 worldPosTK = OpenTK.Mathematics.Vector3.Zero;
             Math3D.GluUnProject(x, glControl.Height - y, depth, ModelMatrix, ProjectionMatrix, Viewport, out worldPosTK);
             worldPos = RHelp.OMVVector3(worldPosTK);
             GL.PopAttrib();

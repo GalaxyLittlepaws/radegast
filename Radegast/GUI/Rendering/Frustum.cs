@@ -49,7 +49,7 @@ namespace Radegast.Rendering
             frustum[side, 3] /= magnitude;
         }
 
-        public static void CalculateFrustum(OpenTK.Matrix4 ProjMatrix, OpenTK.Matrix4 ModelMatrix)
+        public static void CalculateFrustum(OpenTK.Mathematics.Matrix4 ProjMatrix, OpenTK.Mathematics.Matrix4 ModelMatrix)
         {
             ClipMatrix[0] = (ModelMatrix.M11 * ProjMatrix.M11) + (ModelMatrix.M12 * ProjMatrix.M21) + (ModelMatrix.M13 * ProjMatrix.M31) + (ModelMatrix.M14 * ProjMatrix.M41);
             ClipMatrix[1] = (ModelMatrix.M11 * ProjMatrix.M12) + (ModelMatrix.M12 * ProjMatrix.M22) + (ModelMatrix.M13 * ProjMatrix.M32) + (ModelMatrix.M14 * ProjMatrix.M42);

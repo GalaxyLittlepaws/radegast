@@ -218,7 +218,7 @@ namespace Radegast.Rendering
             if ((PrimAnimInfo.Flags & Primitive.TextureAnimMode.ROTATE) != 0)
             {
                 GL.Translate(0.5f, 0.5f, 0f);
-                GL.Rotate(Utils.RAD_TO_DEG * frameCounter, OpenTK.Vector3d.UnitZ);
+                GL.Rotate(Utils.RAD_TO_DEG * frameCounter, OpenTK.Mathematics.Vector3d.UnitZ);
                 GL.Translate(-0.5f, -0.5f, 0f);
             }
             else if ((PrimAnimInfo.Flags & Primitive.TextureAnimMode.SCALE) != 0)
@@ -305,7 +305,7 @@ namespace Radegast.Rendering
                 float endAngle = PrimAnimInfo.Length;
                 float angle = startAngle + (endAngle - startAngle) * smoothOffset;
                 GL.Translate(0.5f, 0.5f, 0f);
-                GL.Rotate(Utils.RAD_TO_DEG * angle, OpenTK.Vector3d.UnitZ);
+                GL.Rotate(Utils.RAD_TO_DEG * angle, OpenTK.Mathematics.Vector3d.UnitZ);
                 GL.Translate(-0.5f, -0.5f, 0f);
             }
 
